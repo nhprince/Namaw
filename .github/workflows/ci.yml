@@ -1,0 +1,66 @@
+name: Namaw CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate:
+    name: Lint, Typecheck & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck extension
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Archive build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: namaw-extension-build
+          path: extension/.output/chrome-mv3/
+          retention-days: 7
+
+  e2e:
+    name: Browser E2E Tests
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Run Playwright E2E tests
+        run: npm run test:e2e

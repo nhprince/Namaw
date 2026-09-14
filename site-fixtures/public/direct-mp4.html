@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Direct MP4 Test Fixture</title>
+    <meta property="og:title" content="Big Buck Bunny 1080p Clip" />
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px;
+      }
+      video {
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        max-width: 640px;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Direct MP4 Playback Test</h1>
+    <p>This page features a standard HTML5 video tag with a direct MP4 source.</p>
+    <video
+      id="test-player"
+      controls
+      src="/media/sample.mp4"
+      width="640"
+      height="360"
+    ></video>
+  </body>
+</html>

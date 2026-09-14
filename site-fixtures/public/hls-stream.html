@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HLS Stream Test Fixture</title>
+    <meta property="og:title" content="HLS Adaptive Master Stream" />
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>HLS Adaptive Stream Test</h1>
+    <p>Simulates player network requests for an HLS .m3u8 master playlist.</p>
+    <video id="hls-player" controls width="640" height="360"></video>
+    <script>
+      // Simulate player requesting HLS master playlist on load
+      fetch('/media/sample.m3u8').then(() => {
+        console.log('Fetched sample.m3u8');
+      });
+    </script>
+  </body>
+</html>

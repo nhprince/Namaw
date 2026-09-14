@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dynamic Video Injection Test</title>
+    <meta property="og:title" content="Dynamically Injected Media" />
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dynamic DOM Video Test</h1>
+    <p id="status">Waiting to inject player...</p>
+    <div id="player-container"></div>
+    <script>
+      setTimeout(() => {
+        const container = document.getElementById('player-container');
+        const video = document.createElement('video');
+        video.src = '/media/sample.mp4';
+        video.controls = true;
+        video.width = 640;
+        video.height = 360;
+        container.appendChild(video);
+        document.getElementById('status').textContent = 'Video player injected via DOM!';
+      }, 500);
+    </script>
+  </body>
+</html>

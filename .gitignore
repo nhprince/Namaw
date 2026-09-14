@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.output/
+.wxt/
+dist/
+build/
+*.crx
+*.zip
+
+# Native helper virtual env & artifacts
+venv/
+__pycache__/
+*.pyc
+dist_helper/
+build_helper/
+*.spec
+
+# Test results & coverage
+coverage/
+test-results/
+playwright-report/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+*.local
