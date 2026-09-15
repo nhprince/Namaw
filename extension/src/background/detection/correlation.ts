@@ -80,13 +80,14 @@ export function correlateCandidate(
   existingList: MediaCandidate[],
   incoming: MediaCandidate
 ): MediaCandidate[] {
-  // If incoming is a platform candidate (e.g. YouTube), replace any generic or blob entries for that page
-  if (incoming.isPlatformStream && incoming.platform) {
+  // If incoming is a platform candidate (e.g. YouTube, Facebook), replace any generic or blob entries for that page
+  if (incoming.platform === 'youtube' || incoming.platform === 'facebook' || incoming.isPlatformStream) {
     const filtered = existingList.filter(
       (item) =>
         !item.sourceUrl.startsWith('blob:') &&
         !item.sourceUrl.includes('googlevideo.com') &&
-        !item.sourceUrl.includes('.m3u8')
+        !item.sourceUrl.includes('.m3u8') &&
+        !(incoming.platform === 'facebook' && item.sourceUrl.includes('fbcdn.net') && item.extractor === 'network')
     );
     const scored = {
       ...incoming,

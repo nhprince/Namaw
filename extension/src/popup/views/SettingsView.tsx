@@ -111,7 +111,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           ) : (
             <p className="text-slate-500 text-[10px] pl-4">
-              Install the optional helper from the repository to enable YouTube, Instagram, and native FFmpeg stream merging.
+              Direct and social videos (Facebook, direct MP4, HLS) download directly in the browser. For YouTube and high-res separate video+audio streams, double-click native-helper/install.bat (1-click setup).
             </p>
           )}
         </div>

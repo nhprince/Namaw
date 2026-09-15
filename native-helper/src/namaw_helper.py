@@ -18,6 +18,19 @@ VERSION = "1.1.0"
 
 def get_ytdlp_cmd():
     """Returns the reliable command array to invoke yt-dlp."""
+    # 1. Check local bin/yt-dlp.exe
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    bin_dir = os.path.join(os.path.dirname(script_dir), "bin")
+    local_exe = os.path.join(bin_dir, "yt-dlp.exe")
+    if os.path.isfile(local_exe):
+        return [local_exe]
+
+    # 2. Check if yt-dlp is on system PATH
+    which_ytdlp = shutil.which("yt-dlp")
+    if which_ytdlp:
+        return [which_ytdlp]
+
+    # 3. Fallback to python module
     return [sys.executable, "-m", "yt_dlp"]
 
 def get_ytdlp_version():

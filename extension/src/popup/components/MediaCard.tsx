@@ -71,6 +71,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
           <div className="flex flex-wrap items-center gap-1.5">
             {candidate.platform === 'youtube' && <QualityBadge type="youtube" label="YouTube" />}
+            {candidate.platform === 'facebook' && <QualityBadge type="facebook" label="Facebook" />}
             {displayResolution && <QualityBadge label={displayResolution} />}
             <QualityBadge type={candidate.type} />
             {formatFileSize(candidate.fileSize) && (

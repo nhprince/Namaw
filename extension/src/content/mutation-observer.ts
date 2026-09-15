@@ -1,18 +1,32 @@
 import { inspectMediaElement } from './dom-detector';
 import { extractYouTubeCandidate, isYouTubePage } from './extractors/youtube';
+import { extractFacebookCandidates, isFacebookPage } from './extractors/facebook';
 import { MediaCandidate } from '../shared/types';
 
 export function startMediaObserver(onMediaFound: (candidate: MediaCandidate) => void) {
   const seenUrls = new Set<string>();
 
   const scan = () => {
-    // 1. Check for dedicated platform extractors first (e.g. YouTube)
+    // 1. Check for dedicated platform extractors first (YouTube & Facebook)
     if (isYouTubePage(window.location.href)) {
       const ytCandidate = extractYouTubeCandidate();
       if (ytCandidate && !seenUrls.has(ytCandidate.sourceUrl)) {
         seenUrls.add(ytCandidate.sourceUrl);
         onMediaFound(ytCandidate);
         return; // Don't scan raw internal YouTube HTML5 video blob if platform candidate is extracted
+      }
+    }
+
+    if (isFacebookPage(window.location.href)) {
+      const fbCandidates = extractFacebookCandidates();
+      if (fbCandidates.length > 0) {
+        for (const fbCand of fbCandidates) {
+          if (!seenUrls.has(fbCand.sourceUrl)) {
+            seenUrls.add(fbCand.sourceUrl);
+            onMediaFound(fbCand);
+          }
+        }
+        return; // Don't scan raw internal Facebook HTML5 blob URLs
       }
     }
 

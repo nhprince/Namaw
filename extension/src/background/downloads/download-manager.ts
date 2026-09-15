@@ -83,9 +83,18 @@ export const downloadManager = {
 
     // 2. Fast path: Direct downloadable media file
     if (candidate.type === 'direct' || candidate.type === 'audio' || candidate.type === 'video') {
-      await this.executeBrowserDownload(job, candidate.sourceUrl);
-    } else if (candidate.type === 'hls' || candidate.type === 'dash') {
+      const downloadUrl = selectedVariant?.url || candidate.sourceUrl;
+      await this.executeBrowserDownload(job, downloadUrl, candidate.pageUrl);
+    } else if (candidate.type === 'hls') {
       await this.executeOffscreenRemux(job, candidate, selectedVariant);
+    } else if (candidate.type === 'dash') {
+      // DASH streams separate video and audio tracks
+      const helperStatus = await nativeBridge.checkStatus();
+      if (helperStatus.connected) {
+        await this.executeNativeCompanionDownload(job, candidate.pageUrl || candidate.sourceUrl);
+      } else {
+        await this.executeOffscreenRemux(job, candidate, selectedVariant);
+      }
     }
 
     return job;
@@ -142,18 +151,37 @@ export const downloadManager = {
     );
   },
 
-  async executeBrowserDownload(job: DownloadJob, url: string): Promise<void> {
+  async executeBrowserDownload(job: DownloadJob, url: string, pageUrl?: string): Promise<void> {
     try {
       job.state = 'DOWNLOADING';
       job.updatedAt = Date.now();
       await db.saveJob(job);
 
-      const downloadId = await chrome.downloads.download({
-        url,
+      // Clean any remaining chunk query parameters
+      let cleanUrl = url;
+      if (cleanUrl.includes('bytestart=') || cleanUrl.includes('byteend=')) {
+        try {
+          const parsed = new URL(cleanUrl);
+          parsed.searchParams.delete('bytestart');
+          parsed.searchParams.delete('byteend');
+          cleanUrl = parsed.toString();
+        } catch {
+          cleanUrl = cleanUrl.replace(/[?&]bytestart=\d+/, '').replace(/&byteend=\d+/, '');
+        }
+      }
+
+      const downloadOptions: chrome.downloads.DownloadOptions = {
+        url: cleanUrl,
         filename: job.targetFilename,
         conflictAction: 'uniquify',
         saveAs: false,
-      });
+      };
+
+      if (pageUrl && pageUrl.startsWith('http')) {
+        downloadOptions.headers = [{ name: 'Referer', value: pageUrl }];
+      }
+
+      const downloadId = await chrome.downloads.download(downloadOptions);
 
       logger.info('DownloadManager', `Started browser download #${downloadId} for ${job.targetFilename}`);
     } catch (err: any) {

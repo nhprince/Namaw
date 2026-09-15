@@ -60,9 +60,18 @@ export function startNetworkMonitor(
         return;
       }
 
+      // Suppress partial byte-range buffer chunks on Facebook/Instagram CDN to prevent corrupt downloads
+      if (
+        (initiator.includes('facebook.com') || urlLower.includes('fbcdn.net')) &&
+        (urlLower.includes('bytestart=') || urlLower.includes('byteend='))
+      ) {
+        return;
+      }
+
       const headers = details.responseHeaders || [];
       let contentType = '';
       let contentLength = 0;
+      let hasContentRange = false;
 
       for (const h of headers) {
         const name = h.name.toLowerCase();
@@ -70,6 +79,8 @@ export function startNetworkMonitor(
           contentType = (h.value || '').split(';')[0].trim().toLowerCase();
         } else if (name === 'content-length') {
           contentLength = parseInt(h.value || '0', 10);
+        } else if (name === 'content-range') {
+          hasContentRange = true;
         }
       }
 
@@ -92,18 +103,31 @@ export function startNetworkMonitor(
         urlLower.includes('.m4v') ||
         urlLower.includes('.mov');
 
-      // Ignore trivial assets (e.g. tiny tracking pixel or icon)
-      if (isDirectMedia && !isHls && !isDash && contentLength > 0 && contentLength < 100000) {
+      // Ignore trivial assets (e.g. tiny tracking pixel, icon, or tiny range slice)
+      if (isDirectMedia && !isHls && !isDash && (contentLength > 0 && contentLength < 100000 || (hasContentRange && contentLength < 300000))) {
         return;
       }
 
       if (isHls || isDash || isDirectMedia) {
         const mediaType = isHls ? 'hls' : isDash ? 'dash' : contentType.startsWith('audio/') ? 'audio' : 'direct';
 
+        // Clean range/chunk query parameters from direct media URL
+        let cleanSourceUrl = url;
+        if (cleanSourceUrl.includes('bytestart=') || cleanSourceUrl.includes('byteend=')) {
+          try {
+            const parsed = new URL(cleanSourceUrl);
+            parsed.searchParams.delete('bytestart');
+            parsed.searchParams.delete('byteend');
+            cleanSourceUrl = parsed.toString();
+          } catch {
+            cleanSourceUrl = cleanSourceUrl.replace(/[?&]bytestart=\d+/, '').replace(/&byteend=\d+/, '');
+          }
+        }
+
         // Derive filename from URL path if possible
         let urlFilename = 'media';
         try {
-          const parsed = new URL(url);
+          const parsed = new URL(cleanSourceUrl);
           const parts = parsed.pathname.split('/');
           const last = parts[parts.length - 1];
           if (last && last.includes('.')) {
@@ -116,14 +140,14 @@ export function startNetworkMonitor(
         // Asynchronously enrich with tab title if filename is generic
         const emitCandidate = (resolvedTitle: string) => {
           const candidate: MediaCandidate = {
-            id: generateCandidateId(details.tabId, url),
+            id: generateCandidateId(details.tabId, cleanSourceUrl),
             tabId: details.tabId,
-            pageUrl: details.initiator || url,
-            sourceUrl: url,
+            pageUrl: details.initiator || cleanSourceUrl,
+            sourceUrl: cleanSourceUrl,
             type: mediaType,
             mimeType: contentType || undefined,
             title: resolvedTitle,
-            fileSize: contentLength > 0 ? contentLength : undefined,
+            fileSize: contentLength > 0 && !hasContentRange ? contentLength : undefined,
             hasVideo: mediaType !== 'audio',
             hasAudio: true,
             extractor: 'network',

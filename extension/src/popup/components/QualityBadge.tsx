@@ -10,6 +10,8 @@ export const QualityBadge: React.FC<QualityBadgeProps> = ({ label, type }) => {
 
   if (type === 'youtube') {
     badgeColor = 'bg-red-950/90 text-red-300 border-red-700/60 font-semibold';
+  } else if (type === 'facebook') {
+    badgeColor = 'bg-blue-950/90 text-blue-300 border-blue-700/60 font-semibold';
   } else if (label?.includes('1080') || label?.includes('4K') || label?.includes('2160')) {
     badgeColor = 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60 font-semibold';
   } else if (label?.includes('720')) {

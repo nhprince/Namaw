@@ -38,13 +38,39 @@ def check_dependencies():
             pass
 
     if not has_ytdlp:
-        print("  • yt-dlp: NOT FOUND! Attempting to install via pip...")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bin_dir = os.path.join(script_dir, "bin")
+        local_exe = os.path.join(bin_dir, "yt-dlp.exe")
+        if os.path.isfile(local_exe):
+            try:
+                ver = subprocess.check_output([local_exe, "--version"], text=True).strip()
+                print(f"  • yt-dlp (Local binary): {ver} (OK)")
+                has_ytdlp = True
+            except Exception:
+                pass
+
+    if not has_ytdlp:
+        print("  • yt-dlp: NOT FOUND! Attempting automatic setup...")
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
             print("  • yt-dlp: Successfully installed via pip! (OK)")
+            has_ytdlp = True
+        except Exception:
+            pass
+
+    if not has_ytdlp:
+        try:
+            import urllib.request
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            bin_dir = os.path.join(script_dir, "bin")
+            os.makedirs(bin_dir, exist_ok=True)
+            local_exe = os.path.join(bin_dir, "yt-dlp.exe")
+            print("  • Downloading standalone yt-dlp executable from GitHub...")
+            urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", local_exe)
+            print(f"  • Standalone yt-dlp.exe downloaded to {local_exe} (OK)")
+            has_ytdlp = True
         except Exception as e:
-            print(f"  • [WARNING] Could not auto-install yt-dlp: {e}")
-            print("    Please run: pip install yt-dlp")
+            print(f"  • [WARNING] Standalone download failed: {e}")
 
     # Check FFmpeg
     if shutil.which("ffmpeg"):

@@ -72,4 +72,58 @@ describe('Correlation Engine', () => {
     expect(merged.variants?.length).toBe(1);
     expect(merged.variants?.[0].resolution).toBe('1080p');
   });
+
+  it('prioritizes Facebook platform candidate over generic blob and chunk items', () => {
+    const blobCandidate: MediaCandidate = {
+      id: 'cand_blob',
+      tabId: 1,
+      pageUrl: 'https://www.facebook.com/watch?v=123',
+      sourceUrl: 'blob:https://www.facebook.com/abc-123',
+      type: 'unknown',
+      title: 'Facebook Video',
+      hasVideo: true,
+      hasAudio: true,
+      extractor: 'dom',
+      confidence: 40,
+      detectedAt: 1000,
+    };
+
+    const chunkCandidate: MediaCandidate = {
+      id: 'cand_chunk',
+      tabId: 1,
+      pageUrl: 'https://www.facebook.com/watch?v=123',
+      sourceUrl: 'https://video.fbcdn.net/v/chunk.mp4?bytestart=0',
+      type: 'direct',
+      title: 'chunk.mp4',
+      hasVideo: true,
+      hasAudio: true,
+      extractor: 'network',
+      confidence: 75,
+      detectedAt: 1010,
+    };
+
+    const fbPlatformCandidate: MediaCandidate = {
+      id: 'cand_fb_plat',
+      tabId: 1,
+      pageUrl: 'https://www.facebook.com/watch?v=123',
+      sourceUrl: 'https://video.fbcdn.net/v/full_video.mp4',
+      type: 'direct',
+      title: 'Funny Cat Reel',
+      hasVideo: true,
+      hasAudio: true,
+      extractor: 'platform',
+      platform: 'facebook',
+      variants: [
+        { id: 'fb_hd', resolution: '720p HD', url: 'https://video.fbcdn.net/v/full_video.mp4', hasVideo: true, hasAudio: true },
+      ],
+      confidence: 95,
+      detectedAt: 1020,
+    };
+
+    const result = correlateCandidate([blobCandidate, chunkCandidate], fbPlatformCandidate);
+    expect(result.length).toBe(1);
+    expect(result[0].platform).toBe('facebook');
+    expect(result[0].title).toBe('Funny Cat Reel');
+    expect(result[0].sourceUrl).toBe('https://video.fbcdn.net/v/full_video.mp4');
+  });
 });
