@@ -19,6 +19,18 @@ const MEDIA_MIME_TYPES = new Set([
   'audio/webm',
 ]);
 
+const GENERIC_NAMES = new Set([
+  'index.m3u8',
+  'master.m3u8',
+  'playlist.m3u8',
+  'manifest.mpd',
+  'manifest.m3u8',
+  'videoplayback',
+  'media',
+  'chunk',
+  'segment',
+]);
+
 export function startNetworkMonitor(
   onMediaFound: (candidate: MediaCandidate) => void
 ) {
@@ -34,6 +46,20 @@ export function startNetworkMonitor(
         return;
       }
 
+      const url = details.url;
+      const urlLower = url.toLowerCase();
+      const initiator = (details.initiator || '').toLowerCase();
+
+      // Suppress raw internal streaming fragments on YouTube
+      // (YouTube is handled by the dedicated YouTube extractor to avoid 0MB index.m3u8 noise)
+      if (
+        initiator.includes('youtube.com') ||
+        urlLower.includes('googlevideo.com') ||
+        urlLower.includes('youtube.com/api/stats')
+      ) {
+        return;
+      }
+
       const headers = details.responseHeaders || [];
       let contentType = '';
       let contentLength = 0;
@@ -46,9 +72,6 @@ export function startNetworkMonitor(
           contentLength = parseInt(h.value || '0', 10);
         }
       }
-
-      const url = details.url;
-      const urlLower = url.toLowerCase();
 
       const isHls =
         contentType.includes('mpegurl') ||
@@ -69,7 +92,7 @@ export function startNetworkMonitor(
         urlLower.includes('.m4v') ||
         urlLower.includes('.mov');
 
-      // Ignore trivial assets (e.g. tiny 1x1 tracking pixel or icon)
+      // Ignore trivial assets (e.g. tiny tracking pixel or icon)
       if (isDirectMedia && !isHls && !isDash && contentLength > 0 && contentLength < 100000) {
         return;
       }
@@ -90,23 +113,38 @@ export function startNetworkMonitor(
           // fallback
         }
 
-        const candidate: MediaCandidate = {
-          id: generateCandidateId(details.tabId, url),
-          tabId: details.tabId,
-          pageUrl: details.initiator || url,
-          sourceUrl: url,
-          type: mediaType,
-          mimeType: contentType || undefined,
-          title: urlFilename,
-          fileSize: contentLength > 0 ? contentLength : undefined,
-          hasVideo: mediaType !== 'audio',
-          hasAudio: true,
-          extractor: 'network',
-          confidence: isHls || isDash ? 85 : 75,
-          detectedAt: Date.now(),
+        // Asynchronously enrich with tab title if filename is generic
+        const emitCandidate = (resolvedTitle: string) => {
+          const candidate: MediaCandidate = {
+            id: generateCandidateId(details.tabId, url),
+            tabId: details.tabId,
+            pageUrl: details.initiator || url,
+            sourceUrl: url,
+            type: mediaType,
+            mimeType: contentType || undefined,
+            title: resolvedTitle,
+            fileSize: contentLength > 0 ? contentLength : undefined,
+            hasVideo: mediaType !== 'audio',
+            hasAudio: true,
+            extractor: 'network',
+            confidence: isHls || isDash ? 85 : 75,
+            detectedAt: Date.now(),
+          };
+
+          onMediaFound(candidate);
         };
 
-        onMediaFound(candidate);
+        if (GENERIC_NAMES.has(urlFilename.toLowerCase())) {
+          chrome.tabs.get(details.tabId, (tab) => {
+            if (chrome.runtime.lastError || !tab || !tab.title) {
+              emitCandidate(urlFilename);
+            } else {
+              emitCandidate(tab.title);
+            }
+          });
+        } else {
+          emitCandidate(urlFilename);
+        }
       }
     },
     { urls: ['<all_urls>'] },

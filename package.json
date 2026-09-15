@@ -2,7 +2,7 @@
   "name": "namaw-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Namaw! — Universal Video Downloader Browser Extension",
+  "type": "module",
   "workspaces": [
     "extension",
     "site-fixtures"
@@ -12,7 +12,7 @@
     "build": "npm --workspace=extension run build",
     "test": "npm --workspace=extension run test",
     "fixtures:start": "npm --workspace=site-fixtures run start",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
     "typecheck": "npm --workspace=extension run typecheck"
   },
   "devDependencies": {

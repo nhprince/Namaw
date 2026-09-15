@@ -209,6 +209,8 @@ export const App: React.FC = () => {
             onDownload={handleDownload}
             onRefresh={fetchTabMedia}
             isLoading={isLoading}
+            helperConnected={helperStatus.connected}
+            onOpenSettings={() => setCurrentTab('settings')}
           />
         )}
         {currentTab === 'queue' && (

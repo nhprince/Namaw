@@ -43,9 +43,13 @@ export interface MediaCandidate {
 
   variants?: MediaVariant[];
 
-  extractor: string; // 'dom' | 'network' | 'hls' | 'dash' | 'yt-dlp'
+  extractor: string; // 'dom' | 'network' | 'hls' | 'dash' | 'yt-dlp' | 'youtube'
   confidence: number; // 0 to 100
   detectedAt: number;
+
+  isPlatformStream?: boolean;
+  requiresNativeHelper?: boolean;
+  platform?: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'twitter' | 'reddit' | 'vimeo' | 'generic';
 }
 
 export type DownloadState =
@@ -60,7 +64,8 @@ export type DownloadState =
   | 'RETRYING'
   | 'FAILED'
   | 'UNSUPPORTED'
-  | 'DRM_PROTECTED';
+  | 'DRM_PROTECTED'
+  | 'COMPANION_REQUIRED';
 
 export interface DownloadProgress {
   downloadedBytes: number;

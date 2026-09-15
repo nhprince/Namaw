@@ -1,2 +1,2 @@
 @echo off
-python "%~dp0namaw_helper.py" %*
+python -u "%~dp0namaw_helper.py" %*

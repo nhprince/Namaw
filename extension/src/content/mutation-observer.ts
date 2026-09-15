@@ -1,10 +1,22 @@
 import { inspectMediaElement } from './dom-detector';
+import { extractYouTubeCandidate, isYouTubePage } from './extractors/youtube';
 import { MediaCandidate } from '../shared/types';
 
 export function startMediaObserver(onMediaFound: (candidate: MediaCandidate) => void) {
   const seenUrls = new Set<string>();
 
   const scan = () => {
+    // 1. Check for dedicated platform extractors first (e.g. YouTube)
+    if (isYouTubePage(window.location.href)) {
+      const ytCandidate = extractYouTubeCandidate();
+      if (ytCandidate && !seenUrls.has(ytCandidate.sourceUrl)) {
+        seenUrls.add(ytCandidate.sourceUrl);
+        onMediaFound(ytCandidate);
+        return; // Don't scan raw internal YouTube HTML5 video blob if platform candidate is extracted
+      }
+    }
+
+    // 2. Scan standard HTML5 video and audio elements
     const elements = document.querySelectorAll<HTMLMediaElement>('video, audio');
     elements.forEach((el) => {
       const candidates = inspectMediaElement(el);
@@ -17,17 +29,19 @@ export function startMediaObserver(onMediaFound: (candidate: MediaCandidate) => 
     });
   };
 
-  // Initial scan
+  // Initial scan (and slight delay for SPA elements to mount)
   scan();
+  setTimeout(scan, 1000);
+  setTimeout(scan, 2500);
 
-  // Watch for dynamic insertions and attribute changes (src / currentSrc)
+  // Watch for dynamic insertions and attribute changes
   let scanTimeout: ReturnType<typeof setTimeout> | null = null;
   const observer = new MutationObserver(() => {
     if (scanTimeout) return;
     scanTimeout = setTimeout(() => {
       scan();
       scanTimeout = null;
-    }, 500); // 500ms debounce
+    }, 600);
   });
 
   observer.observe(document.body || document.documentElement, {
@@ -37,18 +51,36 @@ export function startMediaObserver(onMediaFound: (candidate: MediaCandidate) => 
     attributeFilter: ['src', 'currentSrc'],
   });
 
-  // Also hook into media play events
+  // YouTube and SPA Navigation hooks
+  window.addEventListener('yt-navigate-finish', () => {
+    seenUrls.clear();
+    setTimeout(scan, 500);
+  });
+
+  window.addEventListener('yt-page-data-updated', () => {
+    setTimeout(scan, 500);
+  });
+
+  window.addEventListener('popstate', () => {
+    setTimeout(scan, 500);
+  });
+
+  // Media play events
   window.addEventListener(
     'play',
     (e) => {
       if (e.target instanceof HTMLMediaElement) {
-        const candidates = inspectMediaElement(e.target);
-        candidates.forEach((cand) => {
-          if (!seenUrls.has(cand.sourceUrl)) {
-            seenUrls.add(cand.sourceUrl);
-            onMediaFound(cand);
-          }
-        });
+        if (isYouTubePage(window.location.href)) {
+          scan();
+        } else {
+          const candidates = inspectMediaElement(e.target);
+          candidates.forEach((cand) => {
+            if (!seenUrls.has(cand.sourceUrl)) {
+              seenUrls.add(cand.sourceUrl);
+              onMediaFound(cand);
+            }
+          });
+        }
       }
     },
     true

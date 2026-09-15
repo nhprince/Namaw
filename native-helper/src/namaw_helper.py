@@ -14,11 +14,16 @@ import shutil
 import re
 import threading
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
+
+def get_ytdlp_cmd():
+    """Returns the reliable command array to invoke yt-dlp."""
+    return [sys.executable, "-m", "yt_dlp"]
 
 def get_ytdlp_version():
     try:
-        res = subprocess.run(["yt-dlp", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        cmd = get_ytdlp_cmd() + ["--version"]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode == 0:
             return res.stdout.strip()
     except Exception:
@@ -54,13 +59,25 @@ def handle_download(url, options):
     os.makedirs(output_dir, exist_ok=True)
     output_template = os.path.join(output_dir, "%(title)s [%(resolution)s].%(ext)s")
 
-    cmd = [
-        "yt-dlp",
+    cmd = get_ytdlp_cmd() + [
         "--newline",
         "--no-playlist",
         "-o", output_template,
-        url
     ]
+
+    format_id = options.get("format_id")
+    if format_id == "audio_only":
+        cmd.extend(["-x", "--audio-format", "mp3"])
+    elif format_id == "1080p":
+        cmd.extend(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", "--merge-output-format", "mp4"])
+    elif format_id == "720p":
+        cmd.extend(["-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best", "--merge-output-format", "mp4"])
+    elif format_id == "480p":
+        cmd.extend(["-f", "bestvideo[height<=480]+bestaudio/best[height<=480]/best", "--merge-output-format", "mp4"])
+    else:
+        cmd.extend(["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best", "--merge-output-format", "mp4"])
+
+    cmd.append(url)
 
     try:
         with process_lock:
@@ -72,7 +89,9 @@ def handle_download(url, options):
                 bufsize=1
             )
 
-        progress_regex = re.compile(r"\[download\]\s+([\d\.]+)%\s+of\s+~?([\d\.]+\w+)\s+at\s+([\d\.]+\w+\/s)\s+ETA\s+([\d:]+)")
+        progress_regex = re.compile(
+            r"\[download\]\s+([\d\.]+)%\s+of\s+~?([\d\.]+\w+)\s+at\s+([\d\.]+\w+\/s)\s+ETA\s+([\d:]+)"
+        )
 
         for line in current_process.stdout:
             line = line.strip()
@@ -99,10 +118,27 @@ def handle_download(url, options):
         if returncode == 0:
             send_message({"event": "completed", "output_dir": output_dir})
         else:
-            send_message({"event": "error", "error": f"yt-dlp exited with code {returncode}"})
+            send_message({"event": "error", "error": f"yt-dlp download failed with exit code {returncode}"})
 
     except Exception as e:
         send_message({"event": "error", "error": str(e)})
+
+def handle_extract(url):
+    cmd = get_ytdlp_cmd() + ["-J", "--flat-playlist", "--no-warnings", url]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+        if res.returncode == 0:
+            info = json.loads(res.stdout)
+            send_message({
+                "status": "ok",
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+            })
+        else:
+            send_message({"status": "error", "error": res.stderr.strip()})
+    except Exception as e:
+        send_message({"status": "error", "error": str(e)})
 
 def main():
     while True:
@@ -120,6 +156,11 @@ def main():
                     "ytdlp_version": get_ytdlp_version(),
                     "ffmpeg_available": is_ffmpeg_available()
                 })
+
+            elif action == "extract":
+                url = msg.get("url")
+                if url:
+                    threading.Thread(target=handle_extract, args=(url,), daemon=True).start()
 
             elif action == "download":
                 url = msg.get("url")

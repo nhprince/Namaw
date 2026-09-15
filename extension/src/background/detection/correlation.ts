@@ -7,7 +7,6 @@ import { MediaCandidate, MediaVariant } from '../../shared/types';
 export function normalizeMediaUrl(rawUrl: string): string {
   try {
     const url = new URL(rawUrl);
-    // Parameters to strip for comparison
     const ephemeralParams = [
       'utm_source',
       'utm_medium',
@@ -47,6 +46,10 @@ export function generateCandidateId(tabId: number, url: string): string {
 export function calculateConfidence(candidate: Partial<MediaCandidate>): number {
   let score = 50;
 
+  if (candidate.platform === 'youtube') {
+    return 100;
+  }
+
   if (candidate.type === 'direct' && candidate.fileSize && candidate.fileSize > 0) {
     score += 30;
   } else if (candidate.type === 'hls' || candidate.type === 'dash') {
@@ -57,8 +60,8 @@ export function calculateConfidence(candidate: Partial<MediaCandidate>): number 
     score += 10;
   }
 
-  if (candidate.title && candidate.title.trim().length > 0) {
-    score += 5;
+  if (candidate.title && candidate.title.trim().length > 0 && !candidate.title.endsWith('.m3u8')) {
+    score += 10;
   }
 
   if (candidate.variants && candidate.variants.length > 0) {
@@ -77,9 +80,25 @@ export function correlateCandidate(
   existingList: MediaCandidate[],
   incoming: MediaCandidate
 ): MediaCandidate[] {
+  // If incoming is a platform candidate (e.g. YouTube), replace any generic or blob entries for that page
+  if (incoming.isPlatformStream && incoming.platform) {
+    const filtered = existingList.filter(
+      (item) =>
+        !item.sourceUrl.startsWith('blob:') &&
+        !item.sourceUrl.includes('googlevideo.com') &&
+        !item.sourceUrl.includes('.m3u8')
+    );
+    const scored = {
+      ...incoming,
+      id: incoming.id || generateCandidateId(incoming.tabId, incoming.sourceUrl),
+      confidence: calculateConfidence(incoming),
+    };
+    return [scored, ...filtered];
+  }
+
   const normIncomingUrl = normalizeMediaUrl(incoming.sourceUrl);
   const existingIndex = existingList.findIndex((item) => {
-    // Direct URL match
+    if (item.isPlatformStream) return false;
     if (normalizeMediaUrl(item.sourceUrl) === normIncomingUrl) return true;
 
     // Same base stream if one is blob and one is manifest
@@ -115,9 +134,18 @@ export function correlateCandidate(
     }
   }
 
+  // Choose the more descriptive title (avoid generic names like index.m3u8)
+  let bestTitle = current.title;
+  const isGeneric = (t?: string) =>
+    !t || t.endsWith('.m3u8') || t.endsWith('.mpd') || t === 'media' || t === 'videoplayback';
+
+  if (isGeneric(bestTitle) && !isGeneric(incoming.title)) {
+    bestTitle = incoming.title;
+  }
+
   const updated: MediaCandidate = {
     ...current,
-    title: current.title || incoming.title,
+    title: bestTitle,
     thumbnailUrl: current.thumbnailUrl || incoming.thumbnailUrl,
     width: Math.max(current.width || 0, incoming.width || 0) || undefined,
     height: Math.max(current.height || 0, incoming.height || 0) || undefined,

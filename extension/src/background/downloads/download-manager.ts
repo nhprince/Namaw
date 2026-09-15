@@ -1,6 +1,7 @@
 import { DownloadJob, MediaCandidate, MediaVariant } from '../../shared/types';
 import { db } from '../../lib/storage/db';
 import { renderFilenameTemplate } from '../../lib/sanitization/filename';
+import { nativeBridge } from '../messaging/native-bridge';
 import { logger } from '../../lib/utils/logger';
 
 export const downloadManager = {
@@ -26,8 +27,12 @@ export const downloadManager = {
       }
     }
 
-    const resolution = selectedVariant?.resolution || (candidate.height ? `${candidate.height}p` : undefined);
-    const ext = candidate.type === 'audio' ? 'mp3' : 'mp4';
+    const resolution =
+      selectedVariant?.resolution ||
+      (candidate.height ? `${candidate.height}p` : undefined);
+    const ext =
+      selectedVariant?.formatContainer ||
+      (candidate.type === 'audio' ? 'mp3' : 'mp4');
 
     let filename = customFilename;
     if (!filename) {
@@ -60,7 +65,23 @@ export const downloadManager = {
 
     await db.saveJob(job);
 
-    // Fast path: Direct downloadable media file
+    // 1. Platform Streams (e.g. YouTube): Requires Native Companion with yt-dlp & FFmpeg
+    if (candidate.isPlatformStream || candidate.requiresNativeHelper || candidate.platform === 'youtube') {
+      const helperStatus = await nativeBridge.checkStatus();
+      if (helperStatus.connected) {
+        await this.executeNativeCompanionDownload(job, candidate.pageUrl || candidate.sourceUrl);
+      } else {
+        // Do not silently download a 0-byte corrupt file
+        job.state = 'COMPANION_REQUIRED';
+        job.errorDetails =
+          'YouTube & protected platforms require the Namaw! Companion App (yt-dlp + FFmpeg). Run "python native-helper/install.py" or check Settings.';
+        job.updatedAt = Date.now();
+        await db.saveJob(job);
+      }
+      return job;
+    }
+
+    // 2. Fast path: Direct downloadable media file
     if (candidate.type === 'direct' || candidate.type === 'audio' || candidate.type === 'video') {
       await this.executeBrowserDownload(job, candidate.sourceUrl);
     } else if (candidate.type === 'hls' || candidate.type === 'dash') {
@@ -68,6 +89,57 @@ export const downloadManager = {
     }
 
     return job;
+  },
+
+  async executeNativeCompanionDownload(job: DownloadJob, url: string): Promise<void> {
+    job.state = 'DOWNLOADING';
+    job.engine = 'native_companion';
+    job.updatedAt = Date.now();
+    await db.saveJob(job);
+
+    nativeBridge.startNativeDownload(
+      url,
+      async (progress) => {
+        job.state = 'DOWNLOADING';
+        job.progress.percent = progress.percent || job.progress.percent;
+        job.progress.speedBytesPerSec = 0; // reported in progress string
+        job.updatedAt = Date.now();
+        await db.saveJob(job);
+      },
+      async () => {
+        job.state = 'COMPLETED';
+        job.progress.percent = 100;
+        job.updatedAt = Date.now();
+        await db.saveJob(job);
+
+        await db.addHistoryItem({
+          id: job.id,
+          title: job.targetFilename,
+          filename: job.targetFilename,
+          pageUrl: url,
+          format: 'yt-dlp Native',
+          completedAt: Date.now(),
+          status: 'COMPLETED',
+        });
+      },
+      async (errorMsg) => {
+        job.state = 'FAILED';
+        job.errorDetails = errorMsg;
+        job.updatedAt = Date.now();
+        await db.saveJob(job);
+
+        await db.addHistoryItem({
+          id: job.id,
+          title: job.targetFilename,
+          filename: job.targetFilename,
+          pageUrl: url,
+          format: 'yt-dlp Native',
+          completedAt: Date.now(),
+          status: 'FAILED',
+          error: errorMsg,
+        });
+      }
+    );
   },
 
   async executeBrowserDownload(job: DownloadJob, url: string): Promise<void> {
@@ -153,31 +225,51 @@ export const downloadManager = {
       if (!delta.state) return;
 
       if (delta.state.current === 'complete') {
-        // Record completed download
-        logger.info('DownloadManager', `Download #${delta.id} completed successfully`);
-        // Find matching job if any
+        const [downloadItem] = await chrome.downloads.search({ id: delta.id });
+        const isZeroBytes = downloadItem && downloadItem.fileSize === 0;
+
         const jobs = await db.getActiveJobs();
         for (const job of Object.values(jobs)) {
           if (job.state === 'DOWNLOADING') {
-            job.state = 'COMPLETED';
-            job.progress.percent = 100;
-            job.updatedAt = Date.now();
-            await db.saveJob(job);
+            if (isZeroBytes) {
+              job.state = 'FAILED';
+              job.errorDetails =
+                'The downloaded file is 0 MB (empty). The website rejected direct access or requires the Native Companion.';
+              job.updatedAt = Date.now();
+              await db.saveJob(job);
+            } else {
+              job.state = 'COMPLETED';
+              job.progress.percent = 100;
+              job.progress.downloadedBytes = downloadItem?.fileSize || job.progress.downloadedBytes;
+              job.updatedAt = Date.now();
+              await db.saveJob(job);
 
-            await db.addHistoryItem({
-              id: job.id,
-              title: job.targetFilename,
-              filename: job.targetFilename,
-              pageUrl: '',
-              format: 'Completed',
-              completedAt: Date.now(),
-              status: 'COMPLETED',
-            });
+              await db.addHistoryItem({
+                id: job.id,
+                title: job.targetFilename,
+                filename: job.targetFilename,
+                fileSize: downloadItem?.fileSize,
+                pageUrl: '',
+                format: 'Completed',
+                completedAt: Date.now(),
+                status: 'COMPLETED',
+              });
+            }
             break;
           }
         }
       } else if (delta.state.current === 'interrupted') {
         logger.warn('DownloadManager', `Download #${delta.id} interrupted:`, delta.error?.current);
+        const jobs = await db.getActiveJobs();
+        for (const job of Object.values(jobs)) {
+          if (job.state === 'DOWNLOADING') {
+            job.state = 'FAILED';
+            job.errorDetails = `Download interrupted: ${delta.error?.current || 'Network or access error'}`;
+            job.updatedAt = Date.now();
+            await db.saveJob(job);
+            break;
+          }
+        }
       }
     });
   },

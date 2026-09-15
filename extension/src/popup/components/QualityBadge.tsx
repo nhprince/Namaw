@@ -8,7 +8,9 @@ interface QualityBadgeProps {
 export const QualityBadge: React.FC<QualityBadgeProps> = ({ label, type }) => {
   let badgeColor = 'bg-slate-800 text-slate-300 border-slate-700';
 
-  if (label?.includes('1080') || label?.includes('4K') || label?.includes('2160')) {
+  if (type === 'youtube') {
+    badgeColor = 'bg-red-950/90 text-red-300 border-red-700/60 font-semibold';
+  } else if (label?.includes('1080') || label?.includes('4K') || label?.includes('2160')) {
     badgeColor = 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60 font-semibold';
   } else if (label?.includes('720')) {
     badgeColor = 'bg-sky-950/80 text-sky-300 border-sky-700/60';
