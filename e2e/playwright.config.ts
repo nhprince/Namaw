@@ -29,8 +29,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm --workspace=site-fixtures run start',
+    cwd: path.resolve(__dirname, '..'),
     url: 'http://localhost:3456/health',
     reuseExistingServer: !process.env.CI,
-    timeout: 10000,
+    timeout: 15000,
   },
 });
