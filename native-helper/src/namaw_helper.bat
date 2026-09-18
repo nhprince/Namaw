@@ -1,2 +1,5 @@
 @echo off
-python -u "%~dp0namaw_helper.py" %*
+set "PY=py"
+where py >nul 2>nul
+if errorlevel 1 set "PY=python"
+"%PY%" -u "%~dp0namaw_helper.py" %*

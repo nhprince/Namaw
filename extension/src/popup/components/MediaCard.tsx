@@ -108,6 +108,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               {candidate.variants!.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.resolution || 'Auto'} {v.bandwidth ? `(${Math.round(v.bandwidth / 1000)}k)` : ''}
+                  {v.note ? ` — ${v.note}` : ''}
                 </option>
               ))}
             </select>

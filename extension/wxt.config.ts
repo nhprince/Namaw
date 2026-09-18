@@ -6,13 +6,14 @@ export default defineConfig({
   manifest: {
     name: 'Namaw! — Universal Video Downloader',
     description: 'Fast, intelligent media detection and downloader for browser-accessible videos, HLS, DASH, and audio streams.',
-    version: '1.0.0',
+    version: '1.0.2',
     permissions: [
       'storage',
       'downloads',
       'webRequest',
       'offscreen',
       'tabs',
+      'nativeMessaging',
     ],
     host_permissions: [
       '<all_urls>',

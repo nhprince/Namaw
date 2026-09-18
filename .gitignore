@@ -18,6 +18,11 @@ __pycache__/
 dist_helper/
 build_helper/
 *.spec
+extension/src/public/companion/
+native-helper/.venv-build/
+native-helper/bin/
+native-helper/build-work/
+native-helper/.build-spec/
 
 # Test results & coverage
 coverage/

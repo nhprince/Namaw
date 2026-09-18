@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/copy-companion.mjs",
+    "prebuild": "node ../scripts/copy-companion.mjs",
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
     "build": "wxt build",

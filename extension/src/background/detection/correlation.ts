@@ -84,6 +84,7 @@ export function correlateCandidate(
   if (incoming.platform === 'youtube' || incoming.platform === 'facebook' || incoming.isPlatformStream) {
     const filtered = existingList.filter(
       (item) =>
+        item.platform !== incoming.platform && // drop stale candidates from previous SPA navigations
         !item.sourceUrl.startsWith('blob:') &&
         !item.sourceUrl.includes('googlevideo.com') &&
         !item.sourceUrl.includes('.m3u8') &&

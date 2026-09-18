@@ -7,6 +7,9 @@ interface SettingsViewProps {
   onSaveSettings: (settings: UserSettings) => void;
   helperStatus: NativeHelperStatus;
   onCheckHelper: () => void;
+  extensionId: string;
+  onInstallCompanion: () => void;
+  installingCompanion?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -14,6 +17,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveSettings,
   helperStatus,
   onCheckHelper,
+  extensionId,
+  onInstallCompanion,
+  installingCompanion,
 }) => {
   const [form, setForm] = useState<UserSettings>(settings);
   const [saved, setSaved] = useState(false);
@@ -25,13 +31,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const copyDiagnostics = () => {
+  const copyDiagnostics = async () => {
+    const storageData = await chrome.storage.local.get('namaw_logs' as never).catch(() => ({}));
     const report = {
       timestamp: new Date().toISOString(),
-      extensionVersion: '1.0.0',
+      extensionVersion: '1.0.2',
+      extensionId: chrome.runtime.id,
       userAgent: navigator.userAgent,
       settings: form,
       helperStatus,
+      recentLogs: (storageData as { namaw_logs?: unknown[] }).namaw_logs ?? [],
     };
     navigator.clipboard.writeText(JSON.stringify(report, null, 2));
     setCopiedDiag(true);
@@ -93,7 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
-        <div className="text-[11px] space-y-1">
+        <div className="text-[11px] space-y-1.5">
           <div className="flex items-center gap-2">
             <span
               className={`w-2 h-2 rounded-full ${
@@ -110,9 +119,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div>FFmpeg available: {helperStatus.ffmpegAvailable ? 'Yes' : 'No'}</div>
             </div>
           ) : (
-            <p className="text-slate-500 text-[10px] pl-4">
-              Direct and social videos (Facebook, direct MP4, HLS) download directly in the browser. For YouTube and high-res separate video+audio streams, double-click native-helper/install.bat (1-click setup).
-            </p>
+            <div className="space-y-2">
+              <p className="text-slate-500 text-[10px] pl-4">
+                Direct videos (Facebook, MP4, HLS) download straight in the browser. YouTube and
+                DASH sites need the free Companion (yt-dlp + FFmpeg).
+              </p>
+              {helperStatus.error && (
+                <p className="text-[10px] font-mono text-red-400/90 bg-red-950/40 border border-red-900/50 rounded px-2 py-1 break-all">
+                  {helperStatus.error}
+                </p>
+              )}
+              <button
+                onClick={onInstallCompanion}
+                disabled={installingCompanion}
+                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                <span>{installingCompanion ? 'Preparing installer...' : 'Install Companion (1-click)'}</span>
+              </button>
+              <p className="text-[10px] text-slate-500">
+                Downloads the self-contained companion (no Python needed), then double-click
+                <code> namaw-companion-installer.bat</code>. Registers this exact extension ID:
+              </p>
+              <code className="block text-[10px] font-mono text-slate-400 bg-slate-950 border border-slate-800 rounded px-2 py-1 break-all select-all">
+                {extensionId}
+              </code>
+            </div>
           )}
         </div>
       </div>

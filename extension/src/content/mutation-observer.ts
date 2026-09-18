@@ -75,6 +75,18 @@ export function startMediaObserver(onMediaFound: (candidate: MediaCandidate) => 
     setTimeout(scan, 500);
   });
 
+  // SPA navigation: pushState does not fire popstate, so poll for URL changes
+  // (YouTube watch->watch, Facebook feed->reels, etc.)
+  let lastUrl = window.location.href;
+  setInterval(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      seenUrls.clear();
+      setTimeout(scan, 500);
+      setTimeout(scan, 1800); // late-loading player payloads (reels etc.)
+    }
+  }, 800);
+
   window.addEventListener('popstate', () => {
     setTimeout(scan, 500);
   });

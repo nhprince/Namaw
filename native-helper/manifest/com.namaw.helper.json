@@ -1,9 +1,9 @@
 {
   "name": "com.namaw.helper",
-  "description": "Namaw! Native Companion Host for yt-dlp and FFmpeg",
-  "path": "D:\\Workspace\\Namaw\\native-helper\\src\\namaw_helper.bat",
+  "description": "Namaw! Native Companion Host (yt-dlp + FFmpeg)",
+  "path": "D:\\Workspace\\Namaw\\native-helper\\bin\\namaw_helper.exe",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://*/"
+    "chrome-extension://kpknjedgfodhdcjdnnlpgnnnbmeplcgj/"
   ]
 }

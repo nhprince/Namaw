@@ -1,6 +1,5 @@
 import React from 'react';
-import { Film, RefreshCw, Sparkles, Terminal } from 'lucide-react';
-import { MediaCandidate } from '../../shared/types';
+import { Film, RefreshCw, Sparkles, Terminal } from 'lucide-react';import { MediaCandidate } from '../../shared/types';
 import { MediaCard } from '../components/MediaCard';
 
 interface CurrentPageProps {
@@ -10,6 +9,8 @@ interface CurrentPageProps {
   isLoading: boolean;
   helperConnected?: boolean;
   onOpenSettings?: () => void;
+  onInstallCompanion?: () => void;
+  installingCompanion?: boolean;
 }
 
 export const CurrentPage: React.FC<CurrentPageProps> = ({
@@ -18,7 +19,8 @@ export const CurrentPage: React.FC<CurrentPageProps> = ({
   onRefresh,
   isLoading,
   helperConnected,
-  onOpenSettings,
+  onInstallCompanion,
+  installingCompanion,
 }) => {
   const hasPlatformStream = candidates.some(
     (c) => c.isPlatformStream || c.platform === 'youtube'
@@ -58,19 +60,21 @@ export const CurrentPage: React.FC<CurrentPageProps> = ({
             <div className="flex-1">
               <p className="font-semibold text-amber-100">Companion App Required for YouTube</p>
               <p className="text-[11px] text-amber-300/80 leading-relaxed mt-0.5">
-                YouTube requires yt-dlp + FFmpeg to merge high-quality video and audio without 0MB errors.
+                YouTube requires yt-dlp + FFmpeg to download and merge video/audio. Install once - takes ~30 seconds.
               </p>
             </div>
           </div>
           <div className="flex items-center justify-between pt-1 border-t border-amber-900/40">
             <span className="text-[10px] text-amber-400/90 font-mono">
-              run: python native-helper/install.py
+              downloads 2 files - then double-click the .bat
             </span>
             <button
-              onClick={onOpenSettings}
-              className="text-[11px] bg-amber-900/60 hover:bg-amber-800 text-amber-100 font-medium px-2 py-0.5 rounded transition-colors"
+              onClick={onInstallCompanion}
+              disabled={installingCompanion}
+              className="inline-flex items-center gap-1 text-[11px] bg-amber-900/60 hover:bg-amber-800 disabled:opacity-50 text-amber-100 font-medium px-2.5 py-1 rounded transition-colors"
             >
-              Setup Guide &rarr;
+              <Terminal className="w-3 h-3" />
+              <span>{installingCompanion ? 'Downloading...' : 'Install Companion (1-click)'}</span>
             </button>
           </div>
         </div>

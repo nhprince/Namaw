@@ -1,14 +1,19 @@
 import React from 'react';
-import { ArrowDownCircle, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowDownCircle, CheckCircle, XCircle, AlertCircle, Trash2, Ban } from 'lucide-react';
 import { DownloadJob } from '../../shared/types';
 import { ProgressBar } from '../components/ProgressBar';
 
 interface DownloadQueueProps {
   jobs: DownloadJob[];
   onCancelJob: (jobId: string) => void;
+  onClearFinished: () => void;
 }
 
-export const DownloadQueue: React.FC<DownloadQueueProps> = ({ jobs, onCancelJob }) => {
+export const DownloadQueue: React.FC<DownloadQueueProps> = ({ jobs, onCancelJob, onClearFinished }) => {
+  const finishedCount = jobs.filter(
+    (j) => j.state === 'COMPLETED' || j.state === 'FAILED' || j.state === 'CANCELLED' || j.state === 'COMPANION_REQUIRED'
+  ).length;
+
   if (jobs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center space-y-2">
@@ -23,8 +28,17 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ jobs, onCancelJob 
 
   return (
     <div className="p-3.5 space-y-3">
-      <div className="text-xs text-slate-400">
-        Active Jobs ({jobs.length})
+      <div className="flex items-center justify-between text-xs text-slate-400">
+        <span>Jobs ({jobs.length})</span>
+        {finishedCount > 0 && (
+          <button
+            onClick={onClearFinished}
+            className="hover:text-red-400 transition-colors flex items-center gap-1"
+          >
+            <Trash2 className="w-3 h-3" />
+            <span>Clear finished</span>
+          </button>
+        )}
       </div>
 
       <div className="space-y-2.5">
@@ -47,6 +61,8 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ jobs, onCancelJob 
                 <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               ) : job.state === 'FAILED' ? (
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              ) : job.state === 'CANCELLED' ? (
+                <Ban className="w-4 h-4 text-slate-500 flex-shrink-0" />
               ) : (
                 <button
                   onClick={() => onCancelJob(job.id)}
@@ -58,7 +74,7 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ jobs, onCancelJob 
               )}
             </div>
 
-            {job.state === 'FAILED' ? (
+            {job.state === 'FAILED' || job.state === 'COMPANION_REQUIRED' ? (
               <p className="text-xs text-red-400/90 font-mono bg-red-950/40 border border-red-900/50 rounded-md p-1.5">
                 {job.errorDetails || 'Download failed'}
               </p>

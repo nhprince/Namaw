@@ -7,10 +7,11 @@ export const MediaVariantSchema = z.object({
   height: z.number().optional(),
   bandwidth: z.number().optional(),
   codecs: z.string().optional(),
-  url: z.string().url(),
+  url: z.string(),
   hasVideo: z.boolean(),
   hasAudio: z.boolean(),
   formatContainer: z.string().optional(),
+  note: z.string().optional(),
 });
 
 export const MediaCandidateSchema = z.object({
@@ -35,6 +36,11 @@ export const MediaCandidateSchema = z.object({
   extractor: z.string(),
   confidence: z.number().min(0).max(100),
   detectedAt: z.number(),
+  isPlatformStream: z.boolean().optional(),
+  requiresNativeHelper: z.boolean().optional(),
+  platform: z
+    .enum(['youtube', 'facebook', 'instagram', 'tiktok', 'twitter', 'reddit', 'vimeo', 'generic'])
+    .optional(),
 });
 
 export const ExtensionMessageSchema = z.discriminatedUnion('type', [
@@ -57,6 +63,9 @@ export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('CANCEL_DOWNLOAD'),
     payload: z.object({ jobId: z.string() }),
+  }),
+  z.object({
+    type: z.literal('CLEAR_FINISHED_JOBS'),
   }),
   z.object({
     type: z.literal('GET_DOWNLOAD_JOBS'),

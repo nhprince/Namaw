@@ -40,7 +40,8 @@ Namaw! serves a single focused purpose: detecting media resources playing or req
 | `webRequest` | Required to passively observe network response headers (`Content-Type: video/*`, `audio/*`, `application/x-mpegURL`, `application/dash+xml`) to detect media manifests and streaming segments that are not exposed as static HTML tags. |
 | `offscreen` | Required to host a sandboxed offscreen document for in-browser stream transmuxing (converting MPEG-TS HLS chunks into playable MP4 files using WebAssembly and standard Blobs). |
 | `tabs` | Required to read the active tab's title for meaningful filename suggestions and manage per-tab action badge counts. |
-| `<all_urls>` (host_permissions) | Required for the `webRequest` API to passively observe media requests across websites where the user chooses to watch videos. |
+| `nativeMessaging` | Required for the optional, user-initiated local companion integration: enables communication with a locally installed host process (yt-dlp + FFmpeg) for sites whose streams cannot be assembled by a browser extension in a standards-compliant way. |
+| `<all_urls>` (host_permissions) | Required for the `webRequest` API to passively observe media requests and for verified media fetching across websites where the user chooses to watch videos. |
 
 ---
 
@@ -55,4 +56,5 @@ Namaw! serves a single focused purpose: detecting media resources playing or req
 
 ## 4. Version History
 
-- **v1.0.0 (2026-09-15):** Initial production-grade release. Multi-layer DOM and network detection, HLS and DASH parsers, in-browser mux.js transmuxing, dark-mode React UI, and optional Python native helper.
+- **v1.0.2 (2026-09-17):** Companion is now a self-contained frozen executable (Python + yt-dlp embedded) with an in-process download engine - no system Python and no child processes required; 1-click installer stages the exe from the extension package. Facebook reels/DASH fallback detection, SPA navigation rescanning, stronger CDN URL de-escaping.
+- **v1.0.1 (2026-09-17):** Fixed native companion registration (exact extension IDs instead of invalid wildcards), verified in-browser direct-download pipeline (error pages can no longer be saved as videos), byte-range and fMP4 HLS support, download cancellation, concurrency queueing.

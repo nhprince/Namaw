@@ -17,6 +17,7 @@ export interface MediaVariant {
   hasVideo: boolean;
   hasAudio: boolean;
   formatContainer?: string; // 'mp4', 'ts', 'webm', 'm4s'
+  note?: string; // e.g., 'may be video-only'
 }
 
 export interface MediaCandidate {
@@ -88,6 +89,11 @@ export interface DownloadJob {
   engine: 'browser' | 'offscreen_mux' | 'offscreen_ffmpeg' | 'native_companion';
   createdAt: number;
   updatedAt: number;
+  browserDownloadId?: number;
+  blobUrl?: string;
+  tabId?: number;
+  candidateCount?: number;
+  candidate?: MediaCandidate;
 }
 
 export interface UserSettings {

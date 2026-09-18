@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Film, ArrowDownCircle, History, Settings, Sparkles } from 'lucide-react';
 import { MediaCandidate, DownloadJob, HistoryItem, UserSettings, NativeHelperStatus } from '../shared/types';
 import { db } from '../lib/storage/db';
+import { buildRegistrationBat, stageCompanionExe } from '../lib/companion/installer';
 import { CurrentPage } from './views/CurrentPage';
 import { DownloadQueue } from './views/DownloadQueue';
 import { HistoryView } from './views/HistoryView';
@@ -24,6 +25,7 @@ export const App: React.FC = () => {
   });
   const [helperStatus, setHelperStatus] = useState<NativeHelperStatus>({ connected: false });
   const [isLoading, setIsLoading] = useState(false);
+  const [installingCompanion, setInstallingCompanion] = useState(false);
 
   const fetchTabMedia = useCallback(async () => {
     setIsLoading(true);
@@ -101,6 +103,32 @@ export const App: React.FC = () => {
       type: 'CANCEL_DOWNLOAD',
       payload: { jobId },
     }).then(fetchActiveJobs);
+  };
+
+  const handleClearFinished = () => {
+    chrome.runtime
+      .sendMessage({ type: 'CLEAR_FINISHED_JOBS' })
+      .then(fetchActiveJobs);
+  };
+
+  const handleInstallCompanion = async () => {
+    setInstallingCompanion(true);
+    try {
+      const { absolutePath } = await stageCompanionExe();
+      const bat = buildRegistrationBat(chrome.runtime.id, absolutePath);
+      const blobUrl = URL.createObjectURL(bat);
+      await chrome.downloads.download({
+        url: blobUrl,
+        filename: 'namaw-companion-installer.bat',
+        conflictAction: 'overwrite',
+        saveAs: false,
+      });
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
+    } catch {
+      // ignore - settings view also surfaces this
+    } finally {
+      setInstallingCompanion(false);
+    }
   };
 
   const handleSaveSettings = async (newSettings: UserSettings) => {
@@ -211,10 +239,12 @@ export const App: React.FC = () => {
             isLoading={isLoading}
             helperConnected={helperStatus.connected}
             onOpenSettings={() => setCurrentTab('settings')}
+            onInstallCompanion={handleInstallCompanion}
+            installingCompanion={installingCompanion}
           />
         )}
         {currentTab === 'queue' && (
-          <DownloadQueue jobs={jobs} onCancelJob={handleCancelJob} />
+          <DownloadQueue jobs={jobs} onCancelJob={handleCancelJob} onClearFinished={handleClearFinished} />
         )}
         {currentTab === 'history' && (
           <HistoryView history={history} onClearHistory={handleClearHistory} />
@@ -225,6 +255,9 @@ export const App: React.FC = () => {
             onSaveSettings={handleSaveSettings}
             helperStatus={helperStatus}
             onCheckHelper={checkNativeHelper}
+            extensionId={chrome.runtime.id}
+            onInstallCompanion={handleInstallCompanion}
+            installingCompanion={installingCompanion}
           />
         )}
       </main>

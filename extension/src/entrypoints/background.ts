@@ -5,12 +5,13 @@ import { badgeManager } from '../background/detection/badge-manager';
 import { startNetworkMonitor } from '../background/detection/network-monitor';
 import { downloadManager } from '../background/downloads/download-manager';
 import { nativeBridge } from '../background/messaging/native-bridge';
+import { ExtensionMessageSchema } from '../shared/schemas';
+import { isTerminalState } from '../lib/media/queue';
 import { logger } from '../lib/utils/logger';
 
 export default defineBackground(() => {
   logger.info('Background', 'Namaw! background service worker initialized.');
 
-  // Initialize download state observers
   downloadManager.initDownloadListeners();
 
   // Handle incoming media detections from network monitor
@@ -22,10 +23,29 @@ export default defineBackground(() => {
     await badgeManager.updateBadge(candidate.tabId, updated.length);
   });
 
-  // Handle runtime messages across extension components
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Return true to indicate asynchronous response where applicable
+  chrome.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
     const handleAsync = async () => {
+      // Offscreen-targeted messages are routed to the offscreen document,
+      // not handled here
+      if ((rawMessage as { target?: string })?.target === 'offscreen') {
+        sendResponse({ status: 'ignored' });
+        return;
+      }
+
+      // Content scripts are untrusted contexts: validate every message shape
+      const parsed = ExtensionMessageSchema.safeParse(rawMessage);
+      if (!parsed.success) {
+        logger.warn(
+          'Background',
+          'Rejected malformed extension message:',
+          parsed.error.issues[0]?.message
+        );
+        sendResponse({ status: 'error', error: 'Invalid message shape' });
+        return;
+      }
+
+      const message = parsed.data;
+
       try {
         if (message.type === 'MEDIA_DETECTED') {
           const tabId = sender.tab?.id || message.payload?.tabId;
@@ -38,22 +58,43 @@ export default defineBackground(() => {
           }
           sendResponse({ status: 'ok' });
         } else if (message.type === 'GET_TAB_MEDIA') {
-          const tabId = message.payload?.tabId;
+          const tabId = message.payload.tabId;
           const candidates = tabId ? await db.getTabCandidates(tabId) : [];
           sendResponse({ candidates });
         } else if (message.type === 'START_DOWNLOAD') {
           const { candidateId, variantId, customFilename } = message.payload;
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-          const tabId = tabs[0]?.id || 0;
-          const candidates = await db.getTabCandidates(tabId);
-          const candidate = candidates.find((c) => c.id === candidateId);
+          const activeTabId = tabs[0]?.id || 0;
+          let candidates = await db.getTabCandidates(activeTabId);
+          let candidate = candidates.find((c) => c.id === candidateId);
+
+          // Fallback: scan all stored tabs for snapshots so queued jobs still resolve
+          if (!candidate) {
+            for (const job of Object.values(await db.getActiveJobs())) {
+              if (job.candidate?.id === candidateId) {
+                candidate = job.candidate;
+                break;
+              }
+            }
+          }
 
           if (candidate) {
             const job = await downloadManager.startDownload(candidate, variantId, customFilename);
             sendResponse({ status: 'ok', job });
           } else {
-            sendResponse({ status: 'error', error: 'Media candidate not found' });
+            sendResponse({ status: 'error', error: 'Media candidate not found. Re-scan the page.' });
           }
+        } else if (message.type === 'CANCEL_DOWNLOAD') {
+          await downloadManager.cancelDownload(message.payload.jobId);
+          sendResponse({ status: 'ok' });
+        } else if (message.type === 'CLEAR_FINISHED_JOBS') {
+          const jobs = await db.getActiveJobs();
+          for (const job of Object.values(jobs)) {
+            if (isTerminalState(job.state)) {
+              await db.removeJob(job.id);
+            }
+          }
+          sendResponse({ status: 'ok' });
         } else if (message.type === 'GET_DOWNLOAD_JOBS') {
           const jobs = await db.getActiveJobs();
           sendResponse({ jobs: Object.values(jobs) });
@@ -80,16 +121,18 @@ export default defineBackground(() => {
           if (job) {
             job.state = 'DOWNLOADING';
             job.progress.percent = 100;
+            job.blobUrl = blobUrl;
             job.updatedAt = Date.now();
             await db.saveJob(job);
 
-            // Trigger real browser download for assembled blob
-            await chrome.downloads.download({
+            const downloadId = await chrome.downloads.download({
               url: blobUrl,
               filename: filename || job.targetFilename,
               conflictAction: 'uniquify',
               saveAs: false,
             });
+            job.browserDownloadId = downloadId;
+            await db.saveJob(job);
           }
           sendResponse({ status: 'ok' });
         } else if (message.type === 'OFFSCREEN_REMUX_FAILED') {
@@ -97,10 +140,13 @@ export default defineBackground(() => {
           const jobs = await db.getActiveJobs();
           const job = jobs[jobId];
           if (job) {
-            job.state = 'FAILED';
-            job.errorDetails = error;
-            job.updatedAt = Date.now();
-            await db.saveJob(job);
+            if (job.state !== 'CANCELLED') {
+              await downloadManager.finalizeJob(job, undefined, {
+                format: 'HLS',
+                pageUrl: job.candidate?.pageUrl || '',
+                error,
+              });
+            }
           }
           sendResponse({ status: 'ok' });
         }
@@ -111,7 +157,7 @@ export default defineBackground(() => {
     };
 
     handleAsync();
-    return true; // Keep message channel open for async response
+    return true;
   });
 
   // Tab navigation cleanup
